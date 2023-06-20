@@ -1,11 +1,16 @@
 const fs = require('fs');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { Configuration, OpenAIApi } = require("openai");
+const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 
 // Read the API key from the local file in the 'keys' folder
-const OPENAI_API_KEY = fs.readFileSync('keys/api_key_test.txt', 'utf8').trim();
+const OPENAI_API_KEY = fs.readFileSync('keys/api_key.txt', 'utf8').trim();
 
+// Read the primary admin from the 'admin_username.txt' file
+const ADMIN_USERNAME = fs.readFileSync('admin_username.txt', 'utf8').trim();
+
+// Configure the OpenAI API client
 const configuration = new Configuration({
     apiKey: OPENAI_API_KEY,
   });
@@ -29,39 +34,79 @@ client.once('ready', () => {
 
 // Event: When the bot receives a message
 client.on('messageCreate', async (message) => {
-    if (message.author.bot) return; // Ignore messages from other bots
-  
-    console.log('New message:');
-    console.log(message.content); // Update to access message content directly
-  
-    if (message.channel.name === 'general' && message.content.toLowerCase() === 'hello, how are you?') {
-        // Call the ChatGPT API
-        const response = await getChatGPTResponse('Hello, how are you?');
+  if (message.author.bot) return; // Ignore messages from other bots
 
-        // Send the response to the Discord channel
-        message.channel.send(response);
-    }
-  });
+  console.log('New message:');
+  console.log(message.content); // Update to access message content directly
 
-// Function to fetch response from ChatGPT API
-async function getChatGPTResponse(prompt) {
-  try {
-    // Call the OpenAI API
-    const response = await openai.createCompletion({
-        model: "text-davinci-003",
-        prompt: prompt,
-        maxTokens: 150,
-        temperature: 0,
-      });
-    
-    console.log(response.data.choices[0].text);
-
-    // Return the response
-    return response.data.choices[0].text;
-  } catch (error) {
-    console.error('Failed to fetch ChatGPT response:', error.message);
-    return 'Oops! An error occurred while fetching the response.';
+  if (message.author.username === ADMIN_USERNAME) {
+      // If the message is from the admin, process the command
+      const command = message.content.trim();
+      if (command.startsWith('/addquestion')) {
+        const match = command.match(/addquestion\nquestion: (.+)\nanswer: (.+)/i);
+        try {
+            if (match) {
+                const [, questionText, answerText] = match;
+                // run addQuestion function
+                const questionId = await addQuestion(questionText, answerText);
+                message.channel.send('Question and answer added successfully!');
+            } else {
+                message.channel.send('Invalid format. Please use the following format:\n\n/addquestion\nquestion: [Question Text]\nanswer: [Answer Text]');
+            }
+        } catch (error) {
+            console.error('Error occurred during command processing:', error);
+            message.channel.send('An error occurred while processing the command. Please try again.');
+        }
+    } else {
+      await searchQuestion(message, message.content);
+    };
+  } else {
+      // Otherwise, send a response from ChatGPT
+      await searchQuestion(message, message.content);
   }
+});
+
+// Function to find the answer to a question
+async function searchQuestion(message, userQuestion) {
+  try {
+    const questionFiles = await fs.promises.readdir('question_db');
+    for (const questionFile of questionFiles) {
+      const filePath = `question_db/${questionFile}`;
+      const questionData = await fs.promises.readFile(filePath, 'utf8');
+      const question = JSON.parse(questionData);
+
+      // Remove question mark, spaces, and punctuation
+      const formattedQuestion = question.question.replace(/[? ]/g, '').replace(/[^a-zA-Z]/g, '');
+      const formattedUserQuestion = userQuestion.replace(/[? ]/g, '').replace(/[^a-zA-Z]/g, '');
+
+      if (formattedQuestion.toLowerCase() === formattedUserQuestion.toLowerCase()) {
+        // Found a matching question, send the answer to the channel and mention the user
+        message.reply(`@${message.author.username}, ${question.answer}`);
+        return; // Exit the function after sending the answer
+      }
+    }
+    // No matching question found
+    //message.channel.send('I am sorry, but I do not have an answer to that question.');
+  } catch (error) {
+    console.error('Failed to read question database:', error);
+  }
+}
+
+// Function to add question and answer to the 'question_db' folder
+async function addQuestion(questionText, answerText) {
+  // Create a new question object
+  const question = {
+      question: questionText,
+      answer: answerText,
+  };
+
+  // Write the question object to a JSON file
+  const questionId = uuidv4();
+  const questionPath = `question_db/${questionId}.json`;
+  await fs.promises.writeFile(questionPath, JSON.stringify(question, null, 2));
+
+  // Return the question ID
+  return questionId;
 }
 
 // Read the Discord bot token from a local file
