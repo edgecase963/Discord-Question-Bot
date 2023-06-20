@@ -1,20 +1,10 @@
 const fs = require('fs');
 const { Client, GatewayIntentBits } = require('discord.js');
-const { Configuration, OpenAIApi } = require("openai");
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 
-// Read the API key from the local file in the 'keys' folder
-const OPENAI_API_KEY = fs.readFileSync('keys/api_key.txt', 'utf8').trim();
-
 // Read the primary admin from the 'admin_username.txt' file
 const ADMIN_USERNAME = fs.readFileSync('admin_username.txt', 'utf8').trim();
-
-// Configure the OpenAI API client
-const configuration = new Configuration({
-    apiKey: OPENAI_API_KEY,
-  });
-  const openai = new OpenAIApi(configuration);
 
 // Create a new Discord client with intents
 const client = new Client({
