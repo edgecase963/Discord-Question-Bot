@@ -1,7 +1,6 @@
 const fs = require('fs');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { v4: uuidv4 } = require('uuid');
-const axios = require('axios');
 
 // Read the primary admin from the 'admin_username.txt' file
 const ADMIN_USERNAME = fs.readFileSync('admin_username.txt', 'utf8').trim();
